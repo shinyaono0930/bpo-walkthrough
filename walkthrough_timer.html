@@ -1,0 +1,854 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>年末調整BPO ウォークスルー計測シート</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3350;
+    --accent: #4f8cff;
+    --accent2: #a78bfa;
+    --danger: #ef4444;
+    --success: #22c55e;
+    --text: #e8eaf6;
+    --text-muted: #6b7a99;
+    --text-dim: #3d4566;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Noto Sans JP', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding-bottom: 40px;
+  }
+
+  /* TAB NAV */
+  .tab-nav {
+    display: flex;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+  }
+
+  .tab-btn {
+    flex: 1;
+    padding: 14px 8px;
+    font-size: 12px;
+    font-family: inherit;
+    font-weight: 500;
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    cursor: pointer;
+    border-bottom: 2px solid transparent;
+    transition: 0.15s;
+    letter-spacing: 0.02em;
+  }
+
+  .tab-btn.active { color: var(--accent); border-bottom-color: var(--accent); }
+
+  .tab-page { display: none; padding: 16px; }
+  .tab-page.active { display: block; }
+
+  header {
+    text-align: center;
+    padding: 20px 0 16px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 16px;
+  }
+
+  header h1 { font-size: 17px; font-weight: 700; letter-spacing: 0.04em; }
+  header p { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+  }
+
+  .card h2 {
+    font-size: 11px;
+    font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .sample-nav {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+  }
+
+  .sample-nav label { font-size: 12px; color: var(--text-muted); white-space: nowrap; }
+
+  .sample-nav select {
+    flex: 1;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 6px 10px;
+    font-family: inherit;
+    font-size: 13px;
+  }
+
+  .btn-new {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 7px 14px;
+    font-size: 12px;
+    font-family: inherit;
+    font-weight: 500;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .defect-toggle {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 12px 16px;
+    margin-bottom: 10px;
+  }
+
+  .defect-toggle label { font-size: 13px; flex: 1; }
+
+  .toggle-switch { position: relative; width: 44px; height: 24px; }
+  .toggle-switch input { display: none; }
+
+  .toggle-switch .slider {
+    position: absolute; inset: 0;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 24px;
+    cursor: pointer;
+    transition: 0.2s;
+  }
+
+  .toggle-switch .slider::before {
+    content: '';
+    position: absolute;
+    width: 18px; height: 18px;
+    left: 2px; top: 2px;
+    background: var(--text-muted);
+    border-radius: 50%;
+    transition: 0.2s;
+  }
+
+  .toggle-switch input:checked + .slider { background: var(--danger); border-color: var(--danger); }
+  .toggle-switch input:checked + .slider::before { transform: translateX(20px); background: #fff; }
+
+  .step-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 14px 16px;
+    margin-bottom: 10px;
+    transition: border-color 0.2s;
+  }
+
+  .step-card.active { border-color: var(--accent); }
+  .step-card.done { border-color: var(--success); opacity: 0.85; }
+  .step-card.disabled { opacity: 0.3; pointer-events: none; }
+  .step-card.defect-only { border-left: 3px solid var(--danger); }
+
+  .step-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+
+  .step-num {
+    font-family: 'DM Mono', monospace;
+    font-size: 11px;
+    color: var(--text-muted);
+    background: var(--surface2);
+    border-radius: 6px;
+    padding: 2px 7px;
+  }
+
+  .step-name { font-size: 14px; font-weight: 500; flex: 1; }
+
+  .badge { font-size: 10px; padding: 2px 8px; border-radius: 20px; white-space: nowrap; }
+  .badge-defect { background: rgba(239,68,68,0.15); color: var(--danger); border: 1px solid rgba(239,68,68,0.3); }
+  .badge-move { background: rgba(167,139,250,0.15); color: var(--accent2); border: 1px solid rgba(167,139,250,0.3); }
+
+  .timer-display {
+    font-family: 'DM Mono', monospace;
+    font-size: 28px;
+    font-weight: 500;
+    text-align: center;
+    letter-spacing: 0.05em;
+    padding: 6px 0;
+  }
+
+  .timer-display.running { color: var(--accent); }
+  .timer-display.done-time { color: var(--success); }
+
+  .step-controls { display: flex; gap: 8px; margin-top: 10px; }
+
+  .btn-start {
+    flex: 1; background: var(--accent); color: #fff; border: none;
+    border-radius: 10px; padding: 10px; font-size: 13px;
+    font-family: inherit; font-weight: 500; cursor: pointer;
+  }
+
+  .btn-stop {
+    flex: 1; background: var(--success); color: #fff; border: none;
+    border-radius: 10px; padding: 10px; font-size: 13px;
+    font-family: inherit; font-weight: 500; cursor: pointer;
+  }
+
+  .btn-reset {
+    background: var(--surface2); color: var(--text-muted);
+    border: 1px solid var(--border); border-radius: 10px;
+    padding: 10px 14px; font-size: 13px; font-family: inherit; cursor: pointer;
+  }
+
+  .note-input {
+    width: 100%; background: var(--surface2); border: 1px solid var(--border);
+    border-radius: 8px; color: var(--text); padding: 8px 10px;
+    font-family: inherit; font-size: 12px; margin-top: 8px; resize: none; height: 44px;
+  }
+
+  .note-input::placeholder { color: var(--text-dim); }
+
+  .summary-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+  }
+
+  .summary-row:last-child { border-bottom: none; }
+  .summary-row .lbl { color: var(--text-muted); }
+  .summary-row .val { font-family: 'DM Mono', monospace; font-weight: 500; }
+  .summary-row .val.hi { color: var(--accent); font-size: 16px; }
+  .summary-row .val.red { color: var(--danger); }
+
+  .sample-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 0; border-bottom: 1px solid var(--border);
+    font-size: 13px; cursor: pointer;
+  }
+
+  .sample-row:last-child { border-bottom: none; }
+  .sample-row:hover { color: var(--accent); }
+  .sample-row .s-lbl { color: var(--text-muted); }
+  .sample-row .s-val { font-family: 'DM Mono', monospace; }
+  .defect-mark { color: var(--danger); font-size: 11px; margin-left: 6px; }
+
+  /* ===== REPORT ===== */
+  .report-controls {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 12px;
+  }
+
+  .report-controls h2 {
+    font-size: 11px; font-weight: 700; color: var(--text-muted);
+    letter-spacing: 0.1em; text-transform: uppercase; margin-bottom: 14px;
+  }
+
+  .ctrl-row { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .ctrl-row:last-child { margin-bottom: 0; }
+  .ctrl-row .ctrl-lbl { font-size: 12px; color: var(--text-muted); min-width: 52px; }
+
+  .ctrl-row input[type="range"] { flex: 1; accent-color: var(--accent); }
+
+  .ctrl-row input[type="number"] {
+    width: 72px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 6px 8px;
+    font-family: 'DM Mono', monospace;
+    font-size: 14px;
+    text-align: right;
+  }
+
+  .ctrl-unit { font-size: 12px; color: var(--text-muted); }
+
+  .report-section {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 16px;
+    margin-bottom: 12px;
+    overflow-x: auto;
+  }
+
+  .report-section.ok-sect { border-top: 3px solid var(--success); }
+  .report-section.ng-sect { border-top: 3px solid var(--danger); }
+
+  .sect-title {
+    font-size: 14px; font-weight: 700; margin-bottom: 14px;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  .ok-sect .sect-title { color: var(--success); }
+  .ng-sect .sect-title { color: var(--danger); }
+
+  .cnt-badge {
+    font-size: 11px; padding: 2px 10px; border-radius: 20px; font-weight: 500;
+  }
+
+  .ok-sect .cnt-badge { background: rgba(34,197,94,0.15); color: var(--success); border: 1px solid rgba(34,197,94,0.3); }
+  .ng-sect .cnt-badge { background: rgba(239,68,68,0.15); color: var(--danger); border: 1px solid rgba(239,68,68,0.3); }
+
+  .rtable { width: 100%; border-collapse: collapse; font-size: 12px; min-width: 320px; }
+
+  .rtable th {
+    text-align: right; padding: 6px 6px; color: var(--text-muted);
+    font-weight: 600; border-bottom: 1px solid var(--border); font-size: 11px; white-space: nowrap;
+  }
+
+  .rtable th:first-child { text-align: left; }
+
+  .rtable td {
+    padding: 9px 6px; border-bottom: 1px solid var(--border);
+    text-align: right; vertical-align: middle;
+  }
+
+  .rtable td:first-child { text-align: left; color: var(--text-muted); font-size: 11px; line-height: 1.4; }
+  .rtable tr:last-child td { border-bottom: none; }
+
+  .rtable .mono { font-family: 'DM Mono', monospace; }
+  .rtable .price { color: var(--accent); font-weight: 700; font-family: 'DM Mono', monospace; }
+
+  .rtable .total-row td {
+    font-weight: 700; background: var(--surface2); color: var(--text);
+  }
+
+  .rtable .total-row td:first-child { border-radius: 8px 0 0 8px; }
+  .rtable .total-row td:last-child { border-radius: 0 8px 8px 0; }
+  .rtable .total-row .price { font-size: 15px; color: var(--accent); }
+
+  .no-data { text-align: center; color: var(--text-dim); font-size: 13px; padding: 24px 0; }
+
+  .param-note {
+    font-size: 11px; color: var(--text-dim); margin-top: 10px; text-align: right;
+  }
+
+  .export-btn {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    color: var(--text);
+    padding: 12px;
+    font-size: 13px;
+    font-family: inherit;
+    font-weight: 500;
+    cursor: pointer;
+    margin-top: 8px;
+    letter-spacing: 0.02em;
+  }
+
+  .export-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .csv-drop {
+    background: var(--surface2);
+    border: 1px dashed var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    text-align: center;
+    margin-bottom: 12px;
+    cursor: pointer;
+  }
+
+  .csv-drop:hover { border-color: var(--accent); }
+  .csv-drop p { font-size: 12px; color: var(--text-muted); margin-top: 6px; }
+  .csv-drop input { display: none; }
+
+  .formula-note {
+    font-size: 11px; color: var(--text-dim);
+    background: var(--surface2);
+    border-radius: 8px;
+    padding: 8px 12px;
+    margin-top: 10px;
+    line-height: 1.7;
+  }
+</style>
+</head>
+<body>
+
+<nav class="tab-nav">
+  <button class="tab-btn active" onclick="switchTab('measure', this)">⏱ 計測</button>
+  <button class="tab-btn" onclick="switchTab('report', this)">📊 集計レポート</button>
+</nav>
+
+<!-- ===== 計測タブ ===== -->
+<div class="tab-page active" id="tab-measure">
+  <header>
+    <h1>年末調整BPO　ウォークスルー計測</h1>
+    <p>各工程の実作業時間を計測し、単価算出の根拠データを収集します</p>
+  </header>
+
+  <div class="sample-nav">
+    <label>サンプル</label>
+    <select id="sampleSelect" onchange="loadSample()"></select>
+    <button class="btn-new" onclick="newSample()">＋ 新規</button>
+  </div>
+
+  <div class="defect-toggle">
+    <label>⚠️ このサンプルは不備あり</label>
+    <label class="toggle-switch">
+      <input type="checkbox" id="defectToggle" onchange="toggleDefect()">
+      <span class="slider"></span>
+    </label>
+  </div>
+
+  <div id="stepsContainer"></div>
+
+  <div class="card" style="margin-top:20px;">
+    <h2>このサンプルの集計</h2>
+    <div class="summary-row">
+      <span class="lbl">不備フラグ</span>
+      <span class="val" id="sumDefect">なし</span>
+    </div>
+    <div class="summary-row">
+      <span class="lbl">通常工程合計</span>
+      <span class="val" id="sumNormal">--:--</span>
+    </div>
+    <div class="summary-row">
+      <span class="lbl">不備関連工程合計</span>
+      <span class="val red" id="sumDefectTime">--:--</span>
+    </div>
+    <div class="summary-row">
+      <span class="lbl">1件あたり合計工数</span>
+      <span class="val hi" id="sumTotal">--:--</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>全サンプル一覧</h2>
+    <div class="summary-row">
+      <span class="lbl">計測件数</span>
+      <span class="val" id="avgCount">0件</span>
+    </div>
+    <div class="summary-row">
+      <span class="lbl">不備あり件数</span>
+      <span class="val red" id="avgDefectCount">0件</span>
+    </div>
+    <div class="summary-row">
+      <span class="lbl">不備率</span>
+      <span class="val" id="avgDefectRate">--%</span>
+    </div>
+    <div id="sampleList" style="margin-top:8px;"></div>
+    <button class="export-btn" onclick="exportCSV()">📥 CSVエクスポート</button>
+  </div>
+</div>
+
+<!-- ===== 集計レポートタブ ===== -->
+<div class="tab-page" id="tab-report">
+  <header>
+    <h1>集計レポート</h1>
+    <p>計測データから工程別単価を自動算出します</p>
+  </header>
+
+  <div class="csv-drop" onclick="document.getElementById('csvIn').click()">
+    <div style="font-size:24px;">📂</div>
+    <p>外部CSVを読み込む場合はここをタップ<br><span style="font-size:11px;">（タップしない場合は計測タブのデータを使用）</span></p>
+    <input type="file" id="csvIn" accept=".csv" onchange="importCSV(event)">
+  </div>
+  <div id="csvStatus" style="font-size:11px;color:var(--text-muted);text-align:center;margin-bottom:10px;"></div>
+
+  <div class="report-controls">
+    <h2>⚙️ 単価計算パラメータ</h2>
+    <div class="ctrl-row">
+      <span class="ctrl-lbl">時給</span>
+      <input type="number" id="hourlyRate" value="1500" min="500" max="9999" step="100" oninput="renderReport()">
+      <span class="ctrl-unit">円</span>
+    </div>
+    <div class="ctrl-row">
+      <span class="ctrl-lbl">利益率</span>
+      <input type="range" id="marginRange" min="5" max="80" value="30" step="5" oninput="syncMargin('range')">
+      <input type="number" id="marginNum" value="30" min="5" max="80" step="5" oninput="syncMargin('num')">
+      <span class="ctrl-unit">%</span>
+    </div>
+    <div class="formula-note">
+      単価 = 時給 ÷ 60 × 平均工数(分) ÷ (1 − 利益率)<br>
+      例: ¥1,500 ÷ 60 × 8分 ÷ 0.70 = ¥286/件
+    </div>
+  </div>
+
+  <!-- 検査OK -->
+  <div class="report-section ok-sect">
+    <div class="sect-title">
+      ✅ 検査OK
+      <span class="cnt-badge" id="okCount">0件</span>
+    </div>
+    <div id="okTable"><div class="no-data">データがありません</div></div>
+  </div>
+
+  <!-- 不備あり -->
+  <div class="report-section ng-sect">
+    <div class="sect-title">
+      ⚠️ 不備あり
+      <span class="cnt-badge" id="ngCount">0件</span>
+    </div>
+    <div id="ngTable"><div class="no-data">データがありません</div></div>
+  </div>
+
+  <button class="export-btn" onclick="exportReportCSV()">📥 集計レポートをCSVエクスポート</button>
+</div>
+
+<script>
+const STEPS = [
+  { id: 'receive', label: '受領・仕分け',               defectOnly: false },
+  { id: 'move1',   label: '現物移動① 受領→1次待ち',     defectOnly: false },
+  { id: 'check1',  label: '1次検査',                     defectOnly: false },
+  { id: 'move2',   label: '現物移動② 1次完了→次エリア', defectOnly: false },
+  { id: 'notify',  label: '差し戻し連絡',                defectOnly: true  },
+  { id: 'recheck', label: '再提出・再検査',               defectOnly: true  },
+  { id: 'move3',   label: '現物移動③ 不備→2次待ち',     defectOnly: true  },
+  { id: 'check2',  label: '2次検査',                     defectOnly: false },
+  { id: 'move4',   label: '現物移動④ 2次完了→完了',     defectOnly: false },
+];
+
+let samples = JSON.parse(localStorage.getItem('bpo_wt_v2') || '[]');
+let currentIdx = 0;
+let timers = {};
+let importedSamples = null;
+
+// ===== TAB =====
+function switchTab(tab, btn) {
+  document.querySelectorAll('.tab-page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('tab-' + tab).classList.add('active');
+  btn.classList.add('active');
+  if (tab === 'report') renderReport();
+}
+
+// ===== DATA =====
+function blankSample() {
+  return {
+    id: Date.now(),
+    label: 'サンプル' + (samples.length + 1),
+    defect: false,
+    steps: Object.fromEntries(STEPS.map(s => [s.id, { elapsed: 0, running: false, startAt: null, note: '' }]))
+  };
+}
+
+function save() { localStorage.setItem('bpo_wt_v2', JSON.stringify(samples)); }
+function newSample() { samples.push(blankSample()); currentIdx = samples.length - 1; save(); renderAll(); }
+function loadSample() { currentIdx = +document.getElementById('sampleSelect').value; renderAll(); }
+function jumpToSample(i) { currentIdx = i; renderAll(); }
+
+function toggleDefect() {
+  samples[currentIdx].defect = document.getElementById('defectToggle').checked;
+  save(); renderSteps(); updateSummary();
+}
+
+// ===== RENDER MEASURE =====
+function renderSelect() {
+  document.getElementById('sampleSelect').innerHTML =
+    samples.map((s, i) =>
+      `<option value="${i}" ${i === currentIdx ? 'selected' : ''}>${s.label}${s.defect ? ' ⚠️' : ''}</option>`
+    ).join('');
+}
+
+function renderSteps() {
+  const s = samples[currentIdx];
+  document.getElementById('stepsContainer').innerHTML = STEPS.map((step, idx) => {
+    const st = s.steps[step.id];
+    const disabled = step.defectOnly && !s.defect;
+    const running = st.running;
+    const done = !running && st.elapsed > 0;
+
+    const badgeHtml = step.defectOnly
+      ? `<span class="badge badge-defect">不備時のみ</span>`
+      : (step.id.startsWith('move') ? `<span class="badge badge-move">現物移動</span>` : '');
+
+    const elapsed = running ? (Date.now() - st.startAt) / 1000 : st.elapsed;
+    const timerClass = running ? 'running' : (done ? 'done-time' : '');
+
+    let ctrl = '';
+    if (!running && !done) {
+      ctrl = `<button class="btn-start" onclick="startTimer('${step.id}')">▶ 開始</button>`;
+    } else if (running) {
+      ctrl = `<button class="btn-stop" onclick="stopTimer('${step.id}')">■ 停止・完了</button>
+              <button class="btn-reset" onclick="resetTimer('${step.id}')">↺</button>`;
+    } else {
+      ctrl = `<button class="btn-start" onclick="startTimer('${step.id}')">▶ 再計測</button>
+              <button class="btn-reset" onclick="resetTimer('${step.id}')">↺</button>`;
+    }
+
+    return `
+      <div class="step-card ${disabled?'disabled':''} ${running?'active':''} ${done&&!running?'done':''} ${step.defectOnly?'defect-only':''}">
+        <div class="step-header">
+          <span class="step-num">${String(idx+1).padStart(2,'0')}</span>
+          <span class="step-name">${step.label}</span>
+          ${badgeHtml}
+        </div>
+        <div class="timer-display ${timerClass}" id="disp-${step.id}">${fmt(elapsed)}</div>
+        <div class="step-controls">${ctrl}</div>
+        <textarea class="note-input" placeholder="メモ（気づき・懸念点）" id="note-${step.id}" onchange="saveNote('${step.id}')">${st.note}</textarea>
+      </div>`;
+  }).join('');
+}
+
+// ===== TIMERS =====
+function startTimer(id) {
+  const st = samples[currentIdx].steps[id];
+  st.running = true;
+  st.startAt = Date.now() - st.elapsed * 1000;
+  save(); renderSteps();
+  timers[id] = setInterval(() => {
+    const el = document.getElementById('disp-' + id);
+    if (el) el.textContent = fmt((Date.now() - st.startAt) / 1000);
+  }, 500);
+}
+
+function stopTimer(id) {
+  const st = samples[currentIdx].steps[id];
+  st.elapsed = (Date.now() - st.startAt) / 1000;
+  st.running = false;
+  clearInterval(timers[id]);
+  save(); renderSteps(); updateSummary(); updatePanel();
+}
+
+function resetTimer(id) {
+  const st = samples[currentIdx].steps[id];
+  Object.assign(st, { elapsed: 0, running: false, startAt: null });
+  clearInterval(timers[id]);
+  save(); renderSteps(); updateSummary(); updatePanel();
+}
+
+function saveNote(id) {
+  samples[currentIdx].steps[id].note = document.getElementById('note-' + id).value;
+  save();
+}
+
+// ===== FORMAT =====
+function fmt(sec) {
+  if (!sec || sec <= 0) return '00:00';
+  return String(Math.floor(sec / 60)).padStart(2, '0') + ':' + String(Math.floor(sec % 60)).padStart(2, '0');
+}
+
+function fmtMin(sec) { return sec > 0 ? (sec / 60).toFixed(2) + '分' : '--'; }
+function fmtYen(v) { return v > 0 ? '¥' + Math.ceil(v).toLocaleString() : '--'; }
+
+// ===== SUMMARY =====
+function updateSummary() {
+  const s = samples[currentIdx];
+  let norm = 0, def = 0;
+  STEPS.forEach(step => {
+    const e = s.steps[step.id].elapsed;
+    if (e > 0) step.defectOnly ? (def += e) : (norm += e);
+  });
+  const total = norm + def;
+  const el = document.getElementById('sumDefect');
+  el.textContent = s.defect ? '⚠️ あり' : 'なし';
+  el.style.color = s.defect ? 'var(--danger)' : 'var(--text)';
+  document.getElementById('sumNormal').textContent = fmt(norm);
+  document.getElementById('sumDefectTime').textContent = def > 0 ? fmt(def) : '--:--';
+  document.getElementById('sumTotal').textContent = total > 0 ? fmt(total) : '--:--';
+}
+
+function updatePanel() {
+  const n = samples.length;
+  const d = samples.filter(s => s.defect).length;
+  document.getElementById('avgCount').textContent = n + '件';
+  document.getElementById('avgDefectCount').textContent = d + '件';
+  document.getElementById('avgDefectRate').textContent = n > 0 ? Math.round(d / n * 100) + '%' : '--%';
+
+  document.getElementById('sampleList').innerHTML = samples.map((s, i) => {
+    let total = 0;
+    STEPS.forEach(st => { total += s.steps[st.id].elapsed; });
+    return `<div class="sample-row" onclick="jumpToSample(${i})">
+      <span class="s-lbl">${s.label}${s.defect ? '<span class="defect-mark"> 不備</span>' : ''}</span>
+      <span class="s-val">${total > 0 ? fmt(total) : '--:--'}</span>
+    </div>`;
+  }).join('');
+}
+
+// ===== CSV EXPORT (計測) =====
+function exportCSV() {
+  const hdr = ['サンプル名', '不備', ...STEPS.map(s => s.label + '(分)'), '合計(分)'];
+  const rows = samples.map(s => {
+    const cols = [s.label, s.defect ? '1' : '0'];
+    let total = 0;
+    STEPS.forEach(step => { const e = s.steps[step.id].elapsed; cols.push((e/60).toFixed(2)); total += e; });
+    cols.push((total/60).toFixed(2));
+    return cols;
+  });
+  dlCSV([hdr, ...rows], 'ウォークスルー計測_' + toDay());
+}
+
+function toDay() { return new Date().toISOString().slice(0, 10); }
+
+function dlCSV(rows, name) {
+  const csv = rows.map(r => r.join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob(['\uFEFF' + csv], { type: 'text/csv;charset=utf-8' }));
+  a.download = name + '.csv';
+  a.click();
+}
+
+// ===== CSV IMPORT =====
+function importCSV(e) {
+  const file = e.target.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = ev => {
+    const text = ev.target.result.replace(/^\uFEFF/, '');
+    const lines = text.trim().split('\n');
+    importedSamples = lines.slice(1).map(line => {
+      const cols = line.split(',');
+      const obj = { label: cols[0], defect: cols[1] === '1', steps: {} };
+      STEPS.forEach((step, i) => { obj.steps[step.id] = { elapsed: parseFloat(cols[i + 2] || 0) * 60 }; });
+      return obj;
+    });
+    document.getElementById('csvStatus').textContent = `✅ ${file.name} を読み込みました（${importedSamples.length}件）`;
+    renderReport();
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+// ===== MARGIN SYNC =====
+function syncMargin(from) {
+  const r = document.getElementById('marginRange');
+  const n = document.getElementById('marginNum');
+  if (from === 'range') n.value = r.value; else r.value = n.value;
+  renderReport();
+}
+
+// ===== REPORT =====
+function renderReport() {
+  const data = importedSamples || samples;
+  const hourly = parseFloat(document.getElementById('hourlyRate').value) || 1500;
+  const margin = parseFloat(document.getElementById('marginNum').value) / 100;
+
+  const ok = data.filter(s => !s.defect);
+  const ng = data.filter(s => s.defect);
+
+  document.getElementById('okCount').textContent = ok.length + '件';
+  document.getElementById('ngCount').textContent = ng.length + '件';
+  document.getElementById('okTable').innerHTML = buildTable(ok, hourly, margin, false);
+  document.getElementById('ngTable').innerHTML = buildTable(ng, hourly, margin, true);
+}
+
+function buildTable(set, hourly, margin, inclDefect) {
+  if (set.length === 0) return '<div class="no-data">該当データがありません</div>';
+
+  const rows = STEPS
+    .filter(step => inclDefect || !step.defectOnly)
+    .map(step => {
+      let totalSec = 0, cnt = 0;
+      set.forEach(s => {
+        const e = s.steps[step.id] ? s.steps[step.id].elapsed : 0;
+        if (e > 0) { totalSec += e; cnt++; }
+      });
+      const avgSec = cnt > 0 ? totalSec / cnt : 0;
+      // 単価計算: (時給/60) × 平均工数(分) / (1-利益率)
+      const price = avgSec > 0 ? (hourly / 60) * (avgSec / 60) / (1 - margin) : 0;
+      return { step, totalSec, avgSec, price };
+    });
+
+  const totSec = rows.reduce((a, r) => a + r.totalSec, 0);
+  const avgSec = rows.reduce((a, r) => a + r.avgSec, 0);
+  const totPrice = rows.reduce((a, r) => a + r.price, 0);
+
+  const trs = rows.map(r => `
+    <tr>
+      <td>${r.step.label}${r.step.defectOnly ? ' <span style="color:var(--danger);font-size:9px;">●不備</span>' : ''}</td>
+      <td class="mono">${fmtMin(r.totalSec)}</td>
+      <td class="mono">${fmtMin(r.avgSec)}</td>
+      <td class="price">${fmtYen(r.price)}</td>
+    </tr>`).join('');
+
+  const hourlyVal = parseInt(document.getElementById('hourlyRate').value).toLocaleString();
+  const marginVal = document.getElementById('marginNum').value;
+
+  return `
+    <table class="rtable">
+      <thead>
+        <tr>
+          <th style="text-align:left;">工程</th>
+          <th>累計時間</th>
+          <th>平均時間</th>
+          <th>単価</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${trs}
+        <tr class="total-row">
+          <td>合計 / 1件あたり</td>
+          <td class="mono">${fmtMin(totSec)}</td>
+          <td class="mono">${fmtMin(avgSec)}</td>
+          <td class="price">${fmtYen(totPrice)}</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="param-note">時給¥${hourlyVal} ／ 利益率${marginVal}% ／ ${set.length}件のサンプル</div>`;
+}
+
+// ===== REPORT CSV EXPORT =====
+function exportReportCSV() {
+  const data = importedSamples || samples;
+  const hourly = parseFloat(document.getElementById('hourlyRate').value) || 1500;
+  const margin = parseFloat(document.getElementById('marginNum').value) / 100;
+  const ok = data.filter(s => !s.defect);
+  const ng = data.filter(s => s.defect);
+
+  const hdr = ['区分', '工程', '検査数', '累計時間(分)', '平均時間(分)', '単価(円)'];
+  const rows = [hdr];
+
+  const addRows = (set, label, inclDefect) => {
+    let tTotal = 0, tAvg = 0, tPrice = 0;
+    STEPS.filter(step => inclDefect || !step.defectOnly).forEach(step => {
+      let totalSec = 0, cnt = 0;
+      set.forEach(s => { const e = s.steps[step.id]?.elapsed || 0; if (e > 0) { totalSec += e; cnt++; } });
+      const avgSec = cnt > 0 ? totalSec / cnt : 0;
+      const price = avgSec > 0 ? Math.ceil((hourly / 60) * (avgSec / 60) / (1 - margin)) : 0;
+      rows.push([label, step.label, set.length, (totalSec/60).toFixed(2), (avgSec/60).toFixed(2), price]);
+      tTotal += totalSec; tAvg += avgSec; tPrice += price;
+    });
+    rows.push([label, '【合計】', set.length, (tTotal/60).toFixed(2), (tAvg/60).toFixed(2), tPrice]);
+  };
+
+  addRows(ok, '検査OK', false);
+  addRows(ng, '不備あり', true);
+
+  dlCSV(rows, '集計レポート_' + toDay());
+}
+
+// ===== INIT =====
+function renderAll() {
+  if (samples.length === 0) { samples.push(blankSample()); save(); }
+  document.getElementById('defectToggle').checked = samples[currentIdx].defect;
+  renderSelect(); renderSteps(); updateSummary(); updatePanel();
+}
+
+renderAll();
+</script>
+</body>
+</html>
