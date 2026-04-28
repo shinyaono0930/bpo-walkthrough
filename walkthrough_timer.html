@@ -786,8 +786,15 @@ function calcTotalCost(set, hourly, inclDefect) {
     set.forEach(s => { const e = s.steps[step.id]?.elapsed || 0; if (e > 0) { totalSec += e; cnt++; } });
     totalAvgSec += cnt > 0 ? totalSec / cnt : 0;
   });
-  // 原価 = 時給/60 × 平均工数(分)
   return (hourly / 60) * (totalAvgSec / 60);
+}
+
+function calcStepCost(set, hourly, stepId) {
+  // 特定工程のみの原価を計算
+  let totalSec = 0, cnt = 0;
+  set.forEach(s => { const e = s.steps[stepId]?.elapsed || 0; if (e > 0) { totalSec += e; cnt++; } });
+  const avgSec = cnt > 0 ? totalSec / cnt : 0;
+  return (hourly / 60) * (avgSec / 60);
 }
 
 function renderSimulation(ok, ng, hourly, margin, data) {
@@ -797,10 +804,15 @@ function renderSimulation(ok, ng, hourly, margin, data) {
     return;
   }
 
-  const okCost  = ok.length > 0 ? calcTotalCost(ok, hourly, false) : 0;
-  const ngCost  = ng.length > 0 ? calcTotalCost(ng, hourly, true)  : 0;
-  const okPrice = okCost  > 0 ? okCost  / (1 - margin) : 0;
-  const ngPrice = ngCost  > 0 ? ngCost  / (1 - margin) : 0;
+  const okCost = ok.length > 0 ? calcTotalCost(ok, hourly, false) : 0;
+
+  // 不備あり原価 = 不備9工程原価 + 1次検査原価（再検査分）
+  const ngBaseCost    = ng.length > 0 ? calcTotalCost(ng, hourly, true) : 0;
+  const check1Cost    = ok.length > 0 ? calcStepCost(ok, hourly, 'check1') : 0;
+  const ngCost        = ngBaseCost + check1Cost;
+
+  const okPrice = okCost > 0 ? okCost / (1 - margin) : 0;
+  const ngPrice = ngCost > 0 ? ngCost / (1 - margin) : 0;
 
   // 実測不備率
   const actualRate = data.length > 0 ? ng.length / data.length : 0;
@@ -833,7 +845,12 @@ function renderSimulation(ok, ng, hourly, margin, data) {
           <td class="price">${okPrice > 0 ? fmtYen(okPrice) : '--'}</td>
         </tr>
         <tr>
-          <td>⚠️ 不備あり（${ng.length}件）</td>
+          <td>
+            ⚠️ 不備あり（${ng.length}件）
+            <div style="font-size:10px;color:var(--text-muted);margin-top:3px;">
+              不備9工程原価 ¥${Math.ceil(ngBaseCost).toLocaleString()} + 1次検査再原価 ¥${Math.ceil(check1Cost).toLocaleString()}
+            </div>
+          </td>
           <td class="mono">${ngCost > 0 ? '¥' + Math.ceil(ngCost).toLocaleString() : '--'}</td>
           <td class="price">${ngPrice > 0 ? fmtYen(ngPrice) : '--'}</td>
         </tr>
@@ -864,7 +881,10 @@ function renderSimulation(ok, ng, hourly, margin, data) {
         </tr>
       </tbody>
     </table>
-    <div class="param-note">利益率 ${marginVal}% ／ 合成単価 = (OK原価 × (1−不備率) + 不備原価 × 不備率) ÷ (1−利益率)</div>
+    <div class="param-note">
+      利益率 ${marginVal}% ／ 不備あり原価 = 不備9工程原価 + 1次検査原価（再検査分）<br>
+      合成単価 = (OK原価 × (1−不備率) + 不備あり原価 × 不備率) ÷ (1−利益率)
+    </div>
   `;
 }
 
