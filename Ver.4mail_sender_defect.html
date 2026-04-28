@@ -1,0 +1,1338 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>年末調整 不備者メール送信ツール</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=DM+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #0f1117;
+    --surface: #1a1d27;
+    --surface2: #22263a;
+    --border: #2e3350;
+    --accent: #4f8cff;
+    --danger: #ef4444;
+    --success: #22c55e;
+    --warning: #f59e0b;
+    --text: #e8eaf6;
+    --text-muted: #6b7a99;
+    --text-dim: #3d4566;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Noto Sans JP', sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    padding-bottom: 60px;
+  }
+
+  header {
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+    padding: 18px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  header h1 { font-size: 16px; font-weight: 700; color: #ef4444; }
+  header p { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+  .container { max-width: 860px; margin: 0 auto; padding: 20px 16px; }
+
+  /* ===== STEP INDICATOR ===== */
+  .steps {
+    display: flex;
+    align-items: center;
+    gap: 0;
+    margin-bottom: 24px;
+  }
+
+  .step {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+  }
+
+  .step-num {
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 12px; font-weight: 700;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    flex-shrink: 0;
+  }
+
+  .step.active .step-num { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .step.done .step-num { background: var(--success); border-color: var(--success); color: #fff; }
+
+  .step-label { font-size: 11px; color: var(--text-muted); }
+  .step.active .step-label { color: var(--text); font-weight: 500; }
+  .step.done .step-label { color: var(--success); }
+
+  .step-line { flex: 1; height: 1px; background: var(--border); margin: 0 8px; }
+
+  /* ===== CARDS ===== */
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 16px;
+  }
+
+  .card h2 {
+    font-size: 13px; font-weight: 700;
+    color: var(--text-muted);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 16px;
+    display: flex; align-items: center; gap: 8px;
+  }
+
+  /* ===== DROP ZONE ===== */
+  .drop-zone {
+    background: var(--surface2);
+    border: 2px dashed var(--border);
+    border-radius: 10px;
+    padding: 32px;
+    text-align: center;
+    cursor: pointer;
+    transition: 0.2s;
+  }
+
+  .drop-zone:hover, .drop-zone.dragover { border-color: var(--accent); }
+  .drop-zone .icon { font-size: 32px; margin-bottom: 8px; }
+  .drop-zone p { font-size: 13px; color: var(--text-muted); }
+  .drop-zone span { font-size: 11px; color: var(--text-dim); }
+  .drop-zone input { display: none; }
+
+  .file-loaded {
+    background: rgba(34,197,94,0.1);
+    border: 1px solid rgba(34,197,94,0.3);
+    border-radius: 8px;
+    padding: 12px 16px;
+    font-size: 13px;
+    color: var(--success);
+    margin-top: 10px;
+    display: none;
+  }
+
+  /* ===== MASTER TABLE ===== */
+  .master-table-wrap { overflow-x: auto; }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+
+  th {
+    text-align: left;
+    padding: 8px 10px;
+    color: var(--text-muted);
+    font-weight: 600;
+    border-bottom: 1px solid var(--border);
+    white-space: nowrap;
+    font-size: 11px;
+  }
+
+  td {
+    padding: 8px 10px;
+    border-bottom: 1px solid var(--border);
+    vertical-align: middle;
+  }
+
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--surface2); }
+
+  td input {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    color: var(--text);
+    padding: 5px 8px;
+    font-family: inherit;
+    font-size: 12px;
+    width: 100%;
+  }
+
+  td input:focus { outline: none; border-color: var(--accent); }
+
+  .add-row-btn {
+    background: none;
+    border: 1px dashed var(--border);
+    border-radius: 8px;
+    color: var(--text-muted);
+    padding: 8px 16px;
+    font-size: 12px;
+    font-family: inherit;
+    cursor: pointer;
+    margin-top: 10px;
+    width: 100%;
+  }
+
+  .add-row-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  .del-btn {
+    background: none;
+    border: none;
+    color: var(--danger);
+    cursor: pointer;
+    font-size: 14px;
+    padding: 4px 8px;
+    border-radius: 4px;
+  }
+
+  /* ===== MAIL TEMPLATE ===== */
+  .template-area {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 12px;
+    font-family: 'Noto Sans JP', sans-serif;
+    font-size: 13px;
+    line-height: 1.8;
+    resize: vertical;
+    min-height: 200px;
+  }
+
+  .template-area:focus { outline: none; border-color: var(--accent); }
+
+  .subject-input {
+    width: 100%;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text);
+    padding: 10px 12px;
+    font-family: inherit;
+    font-size: 13px;
+    margin-bottom: 10px;
+  }
+
+  .subject-input:focus { outline: none; border-color: var(--accent); }
+
+  .hint {
+    font-size: 11px;
+    color: var(--text-dim);
+    background: var(--surface2);
+    border-radius: 6px;
+    padding: 8px 12px;
+    margin-bottom: 10px;
+    line-height: 1.7;
+  }
+
+  /* ===== PREVIEW ===== */
+  .preview-section {
+    margin-bottom: 16px;
+  }
+
+  .preview-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 12px;
+  }
+
+  .preview-header h3 { font-size: 13px; font-weight: 600; }
+
+  .office-tabs {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 12px;
+  }
+
+  .office-tab {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 20px;
+    padding: 4px 12px;
+    font-size: 11px;
+    cursor: pointer;
+    color: var(--text-muted);
+  }
+
+  .office-tab.active { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .office-tab .badge {
+    display: inline-block;
+    background: var(--danger);
+    color: #fff;
+    border-radius: 10px;
+    padding: 0 5px;
+    font-size: 10px;
+    margin-left: 4px;
+  }
+
+  .mail-preview {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px;
+    font-size: 13px;
+    line-height: 1.9;
+    white-space: pre-wrap;
+    font-family: 'Noto Sans JP', monospace;
+    min-height: 120px;
+  }
+
+  .mail-preview .subject-line {
+    font-weight: 700;
+    color: var(--accent);
+    border-bottom: 1px solid var(--border);
+    padding-bottom: 8px;
+    margin-bottom: 12px;
+    font-size: 12px;
+  }
+
+  /* ===== SEND SECTION ===== */
+  .send-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 0;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    gap: 12px;
+  }
+
+  .send-row:last-child { border-bottom: none; }
+
+  .send-row .office-name { font-weight: 500; flex: 1; }
+  .send-row .email-addr { color: var(--text-muted); font-size: 12px; font-family: 'DM Mono', monospace; }
+  .send-row .count { color: var(--danger); font-size: 11px; white-space: nowrap; }
+
+  .send-row .check-btn {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text-muted);
+    padding: 5px 12px;
+    font-size: 11px;
+    font-family: inherit;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .send-row .check-btn:hover { border-color: var(--accent); color: var(--accent); }
+
+  /* ===== BUTTONS ===== */
+  .btn {
+    border: none;
+    border-radius: 10px;
+    padding: 12px 20px;
+    font-size: 13px;
+    font-family: inherit;
+    font-weight: 500;
+    cursor: pointer;
+    transition: 0.15s;
+  }
+
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-success { background: var(--success); color: #fff; }
+  .btn-success:hover { opacity: 0.85; }
+  .btn-success:disabled { opacity: 0.4; cursor: not-allowed; }
+
+  .btn-outline {
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text);
+  }
+
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+
+  .btn-row {
+    display: flex;
+    gap: 10px;
+    margin-top: 16px;
+    flex-wrap: wrap;
+  }
+
+  /* ===== STATUS ===== */
+  .status-bar {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: var(--text-muted);
+    margin-top: 12px;
+    display: none;
+  }
+
+  .status-bar.show { display: block; }
+  .status-bar.success { color: var(--success); border-color: rgba(34,197,94,0.3); background: rgba(34,197,94,0.08); }
+  .status-bar.error { color: var(--danger); border-color: rgba(239,68,68,0.3); background: rgba(239,68,68,0.08); }
+
+  .no-data { text-align: center; color: var(--text-dim); font-size: 13px; padding: 24px; }
+
+  .stat-row {
+    display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px;
+  }
+
+  .stat-box {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 12px 16px;
+    flex: 1;
+    min-width: 100px;
+    text-align: center;
+  }
+
+  .stat-box .num { font-size: 24px; font-weight: 700; font-family: 'DM Mono', monospace; color: var(--accent); }
+  .stat-box .num.red { color: var(--danger); }
+  .stat-box .lbl { font-size: 11px; color: var(--text-muted); margin-top: 2px; }
+
+  .modal-overlay {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    z-index: 200;
+    display: none;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+  }
+
+  .modal-overlay.show { display: flex; }
+
+  .modal {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px;
+    max-width: 560px;
+    width: 100%;
+    max-height: 80vh;
+    overflow-y: auto;
+  }
+
+  .modal h3 { font-size: 15px; font-weight: 700; margin-bottom: 4px; }
+  .modal .sub { font-size: 12px; color: var(--text-muted); margin-bottom: 16px; }
+
+  .modal-mail {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 14px;
+    font-size: 12px;
+    line-height: 1.9;
+    white-space: pre-wrap;
+    margin-bottom: 16px;
+  }
+
+  .modal-btn-row { display: flex; gap: 10px; justify-content: flex-end; }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>📧 年末調整 不備者メール送信ツール</h1>
+    <p>CSVを読み込み、事業所別に不備者リストをメール送信します</p>
+  </div>
+</header>
+
+<div class="container">
+
+  <!-- STEP INDICATOR -->
+  <div class="steps">
+    <div class="step active" id="step1-indicator">
+      <div class="step-num">1</div>
+      <span class="step-label">CSV読込</span>
+    </div>
+    <div class="step-line"></div>
+    <div class="step" id="step2-indicator">
+      <div class="step-num">2</div>
+      <span class="step-label">事業所マスタ</span>
+    </div>
+    <div class="step-line"></div>
+    <div class="step" id="step3-indicator">
+      <div class="step-num">3</div>
+      <span class="step-label">メール設定</span>
+    </div>
+    <div class="step-line"></div>
+    <div class="step" id="step4-indicator">
+      <div class="step-num">4</div>
+      <span class="step-label">プレビュー・送信</span>
+    </div>
+  </div>
+
+  <!-- STEP 1: CSV読込 -->
+  <div id="step1">
+    <div class="card">
+      <h2>📂 STEP 1-A — 年末調整CSVを読み込む</h2>
+      <div class="drop-zone" id="dropZone" onclick="document.getElementById('csvInput').click()"
+        ondragover="handleDragOver(event)" ondrop="handleDrop(event)">
+        <div class="icon">📄</div>
+        <p>クリックまたはドラッグ＆ドロップ</p>
+        <span>Shift-JIS形式のCSVファイルに対応</span>
+        <input type="file" id="csvInput" accept=".csv" onchange="loadCSV(event)">
+      </div>
+      <div class="file-loaded" id="fileLoaded"></div>
+      <div id="csvStats" style="display:none;margin-top:16px;">
+        <div class="stat-row" id="statRow"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>🏢 STEP 1-B — 事業所マスタCSVを読み込む</h2>
+      <div style="font-size:12px;color:var(--text-muted);margin-bottom:12px;">
+        フォーマット：1列目「事業所名」、2列目「メールアドレス」（ヘッダー行あり）
+      </div>
+      <div class="drop-zone" id="masterDropZone" onclick="document.getElementById('masterInput').click()"
+        ondragover="handleMasterDragOver(event)" ondrop="handleMasterDrop(event)">
+        <div class="icon">🏢</div>
+        <p>事業所マスタCSVをアップロード</p>
+        <span>事業所名・責任者名・メールアドレスの3列構成</span>
+        <input type="file" id="masterInput" accept=".csv" onchange="loadMasterCSV(event)">
+      </div>
+      <div class="file-loaded" id="masterLoaded"></div>
+      <div id="masterStats" style="display:none;margin-top:12px;">
+        <div class="stat-row" id="masterStatRow"></div>
+      </div>
+      <div id="matchResult" style="display:none;margin-top:12px;"></div>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-primary" id="toStep2Btn" disabled onclick="goStep(2)">次へ →</button>
+    </div>
+  </div>
+
+  <!-- STEP 2: 事業所マスタ -->
+  <div id="step2" style="display:none;">
+    <div class="card">
+      <h2>🏢 STEP 2 — 事業所マスタ（責任者・メールアドレス）</h2>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px;">
+        CSVから検出された事業所に責任者名とメールアドレスを入力してください。
+      </p>
+      <div class="master-table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>事業所名</th>
+              <th>責任者名</th>
+              <th>メールアドレス</th>
+              <th>不備者数</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="masterTableBody"></tbody>
+        </table>
+      </div>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-outline" onclick="goStep(1)">← 戻る</button>
+      <button class="btn btn-primary" onclick="goStep(3)">次へ →</button>
+    </div>
+  </div>
+
+  <!-- STEP 3: メールテンプレート -->
+  <div id="step3" style="display:none;">
+    <div class="card">
+      <h2>✉️ STEP 3 — メールテンプレートを設定</h2>
+      <div class="hint">
+        使用できる変数：<br>
+        <code>{事業所名}</code> → 事業所名　
+        <code>{責任者名}</code> → 責任者名　
+        <code>{氏名リスト}</code> → 不備者の氏名一覧（番号・氏・名）　
+        <code>{件数}</code> → 不備者数　
+        <code>{日付}</code> → 今日の日付
+      </div>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">件名</p>
+      <input type="text" class="subject-input" id="mailSubject"
+        value="【年末調整】書類不備のご連絡 / {事業所名}">
+
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:8px;">本文</p>
+      <textarea class="template-area" id="mailTemplate">{事業所名} {責任者名} 様
+
+お世話になっております。
+年末調整BPO事務局でございます。
+
+{事業所名}の従業員様について、提出書類に不備が確認されました。
+恐れ入りますが、ご本人への確認・再提出のご依頼をお願いいたします。
+
+■ 不備者一覧（{件数}名）
+{氏名リスト}
+
+お手数をおかけしますが、どうぞよろしくお願いいたします。
+
+━━━━━━━━━━━━━━━━━━━━
+年末調整BPO事務局
+送信日：{日付}
+━━━━━━━━━━━━━━━━━━━━</textarea>
+    </div>
+    <div class="btn-row">
+      <button class="btn btn-outline" onclick="goStep(2)">← 戻る</button>
+      <button class="btn btn-primary" onclick="goStep(4)">プレビューへ →</button>
+    </div>
+  </div>
+
+  <!-- STEP 4: プレビュー・送信 -->
+  <div id="step4" style="display:none;">
+    <div class="card">
+      <h2>👁 STEP 4 — プレビュー・送信確認</h2>
+      <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px;">
+        不備数が多い順に並んでいます。左のCSV元データと右のメール文面を見比べて確認してください。
+      </p>
+
+      <!-- 事業所タブ（不備数多い順） -->
+      <div class="office-tabs" id="officeTabs"></div>
+
+      <!-- 左右分割プレビュー -->
+      <div style="display:flex;gap:12px;margin-top:14px;flex-wrap:wrap;">
+
+        <!-- 左：送信先情報 + CSV元データ -->
+        <div style="flex:1;min-width:280px;">
+          <!-- 送信先情報 -->
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;margin-bottom:10px;">
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:10px;">📋 送信先情報</div>
+            <div id="previewMasterInfo"></div>
+          </div>
+
+          <!-- CSV元データ -->
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;">
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:10px;">📄 CSV元データ（エビデンス）</div>
+            <div id="previewCsvData"></div>
+            <div id="previewCountCheck" style="margin-top:10px;font-size:12px;font-weight:700;"></div>
+          </div>
+        </div>
+
+        <!-- 右：メール文面 -->
+        <div style="flex:1;min-width:280px;">
+          <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;height:100%;">
+            <div style="font-size:11px;font-weight:700;color:var(--text-muted);letter-spacing:0.08em;text-transform:uppercase;margin-bottom:10px;">✉️ メール文面</div>
+            <div style="font-size:12px;color:var(--accent);font-weight:700;margin-bottom:8px;padding-bottom:8px;border-bottom:1px solid var(--border);" id="previewSubject"></div>
+            <div style="font-size:12px;line-height:1.9;white-space:pre-wrap;" id="previewBody"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 確認済みチェック -->
+      <div style="display:flex;align-items:center;gap:10px;margin-top:14px;padding:12px 14px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;">
+        <input type="checkbox" id="confirmCheck" style="width:18px;height:18px;accent-color:var(--success);cursor:pointer;" onchange="updateConfirmStatus()">
+        <label for="confirmCheck" style="font-size:13px;cursor:pointer;">この事業所の内容を確認しました</label>
+        <span id="confirmProgress" style="margin-left:auto;font-size:11px;color:var(--text-muted);font-family:'DM Mono',monospace;"></span>
+      </div>
+    </div>
+
+    <div class="card">
+      <h2>📬 送信一覧</h2>
+      <div id="sendList"></div>
+      <div class="btn-row">
+        <button class="btn btn-outline" onclick="goStep(3)">← 戻る</button>
+        <button class="btn btn-success" id="sendAllBtn" onclick="confirmSendAll()">✉️ 全事業所に一括送信</button>
+      </div>
+      <div class="status-bar" id="statusBar"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- MODAL: 送信確認 -->
+<div class="modal-overlay" id="confirmModal">
+  <div class="modal">
+    <h3>📧 送信確認</h3>
+    <p class="sub" id="modalSub"></p>
+    <div class="modal-mail" id="modalMailContent"></div>
+    <div class="modal-btn-row">
+      <button class="btn btn-outline" onclick="closeModal()">キャンセル</button>
+      <button class="btn btn-success" id="modalSendBtn">送信する</button>
+    </div>
+  </div>
+</div>
+
+<script>
+// ===== STATE =====
+let csvData = [];        // 全行データ
+let defectMap = {};      // { 事業所名: [{no, sei, mei}, ...] }
+let masterData = {};     // { 事業所名: { email } }
+let masterLoaded = false;
+let currentOffice = '';
+let modalCallback = null;
+
+// ===== DRAG & DROP (年末調整CSV) =====
+function handleDragOver(e) { e.preventDefault(); document.getElementById('dropZone').classList.add('dragover'); }
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropZone').classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) processFile(file);
+}
+
+// ===== DRAG & DROP (マスタCSV) =====
+function handleMasterDragOver(e) { e.preventDefault(); document.getElementById('masterDropZone').classList.add('dragover'); }
+function handleMasterDrop(e) {
+  e.preventDefault();
+  document.getElementById('masterDropZone').classList.remove('dragover');
+  const file = e.dataTransfer.files[0];
+  if (file) processMasterFile(file);
+}
+function loadMasterCSV(e) { processMasterFile(e.target.files[0]); }
+
+function processMasterFile(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      // UTF-8 / Shift-JIS 両対応
+      let text;
+      try {
+        const bytes = new Uint8Array(ev.target.result);
+        text = new TextDecoder('shift-jis').decode(bytes);
+        if (text.includes('�')) text = new TextDecoder('utf-8').decode(bytes);
+      } catch(e) {
+        text = new TextDecoder('utf-8').decode(new Uint8Array(ev.target.result));
+      }
+      parseMasterCSV(text, file.name);
+    } catch(err) {
+      showStatus('マスタCSVの読み込みに失敗しました: ' + err.message, 'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseMasterCSV(text, filename) {
+  const lines = text.trim().split('\n').filter(l => l.trim());
+  const rows = lines.map(line => {
+    const result = [];
+    let inQ = false, val = '';
+    for (let c of line) {
+      if (c === '"') { inQ = !inQ; }
+      else if (c === ',' && !inQ) { result.push(val.trim()); val = ''; }
+      else val += c;
+    }
+    result.push(val.trim());
+    return result;
+  });
+
+  // ヘッダーをスキップして読み込み（事業所名・責任者名・メールアドレスの3列）
+  const dataRows = rows.slice(1).filter(r => r.length >= 3 && r[0] && r[2]);
+  let loadedCount = 0;
+
+  dataRows.forEach(row => {
+    const officeName = row[0].trim();
+    const manager   = row[1].trim();
+    const email     = row[2].trim();
+    if (officeName && email) {
+      masterData[officeName] = { manager, email };
+      loadedCount++;
+    }
+  });
+
+  masterLoaded = true;
+
+  document.getElementById('masterLoaded').style.display = 'block';
+  document.getElementById('masterLoaded').textContent = `✅ ${filename} を読み込みました（${loadedCount}事業所）`;
+
+  document.getElementById('masterStats').style.display = 'block';
+  document.getElementById('masterStatRow').innerHTML = `
+    <div class="stat-box"><div class="num">${loadedCount}</div><div class="lbl">マスタ登録事業所数</div></div>
+  `;
+
+  // 年末調整CSVが先に読まれていれば紐づけ結果を表示
+  if (Object.keys(defectMap).length > 0) {
+    showMatchResult();
+  }
+
+  checkReadyToNext();
+}
+
+function showMatchResult() {
+  const offices = Object.keys(defectMap);
+  const matched = offices.filter(o => masterData[o]?.email);
+  const unmatched = offices.filter(o => !masterData[o]?.email);
+
+  const el = document.getElementById('matchResult');
+  el.style.display = 'block';
+  el.innerHTML = `
+    <div style="background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:14px;">
+      <div style="font-size:12px;font-weight:700;margin-bottom:10px;color:var(--text-muted);letter-spacing:0.05em;">🔗 紐づけ結果</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;margin-bottom:${unmatched.length > 0 ? '12px' : '0'};">
+        <div class="stat-box" style="border-color:rgba(34,197,94,0.3);">
+          <div class="num" style="color:var(--success);font-size:20px;">${matched.length}</div>
+          <div class="lbl">紐づけ成功</div>
+        </div>
+        <div class="stat-box" style="border-color:${unmatched.length > 0 ? 'rgba(239,68,68,0.3)' : 'var(--border)'};">
+          <div class="num" style="color:${unmatched.length > 0 ? 'var(--danger)' : 'var(--text-muted)'};font-size:20px;">${unmatched.length}</div>
+          <div class="lbl">未紐づけ</div>
+        </div>
+      </div>
+      ${unmatched.length > 0 ? `
+        <div style="font-size:11px;color:var(--danger);background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.2);border-radius:8px;padding:10px;">
+          ⚠️ 以下の事業所はマスタに見つかりませんでした。次のステップで手動入力できます。<br>
+          ${unmatched.map(o => `<span style="display:inline-block;margin:2px 4px;background:rgba(239,68,68,0.15);padding:2px 8px;border-radius:4px;">${o}</span>`).join('')}
+        </div>
+      ` : '<div style="font-size:12px;color:var(--success);">✅ 全事業所のメールアドレスが紐づきました！</div>'}
+    </div>
+  `;
+}
+
+function checkReadyToNext() {
+  // 年末調整CSVが読み込まれていれば次へ進める（マスタは任意）
+  const ready = Object.keys(defectMap).length > 0;
+  document.getElementById('toStep2Btn').disabled = !ready;
+}
+
+// ===== CSV LOAD =====
+function loadCSV(e) { processFile(e.target.files[0]); }
+
+function processFile(file) {
+  const reader = new FileReader();
+  reader.onload = ev => {
+    try {
+      // Shift-JIS → UTF-8
+      const bytes = new Uint8Array(ev.target.result);
+      const decoder = new TextDecoder('shift-jis');
+      const text = decoder.decode(bytes);
+      parseCSV(text, file.name);
+    } catch(err) {
+      showStatus('CSVの読み込みに失敗しました: ' + err.message, 'error');
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseCSV(text, filename) {
+  const lines = text.trim().split('\n');
+  const rows = lines.map(line => {
+    const result = [];
+    let inQ = false, val = '';
+    for (let c of line) {
+      if (c === '"') { inQ = !inQ; }
+      else if (c === ',' && !inQ) { result.push(val); val = ''; }
+      else val += c;
+    }
+    result.push(val);
+    return result;
+  });
+
+  const header = rows[0];
+  csvData = rows.slice(1).filter(r => r.length > 10);
+
+  // 不備者（進捗状況 = 差戻し）を事業所別に抽出
+  defectMap = {};
+  csvData.forEach(row => {
+    const status = row[10]?.trim();
+    if (status !== '差戻し') return;
+    const office = row[6]?.trim() || '不明';
+    const no  = row[0]?.trim();
+    const sei = row[1]?.trim();
+    const mei = row[2]?.trim();
+    if (!defectMap[office]) defectMap[office] = [];
+    defectMap[office].push({ no, sei, mei });
+  });
+
+  const totalDefect = Object.values(defectMap).reduce((a, v) => a + v.length, 0);
+  const officeCount = Object.keys(defectMap).length;
+
+  // マスタ初期化
+  Object.keys(defectMap).forEach(o => {
+    if (!masterData[o]) masterData[o] = { email: '' };
+  });
+
+  // 表示
+  document.getElementById('fileLoaded').style.display = 'block';
+  document.getElementById('fileLoaded').textContent = `✅ ${filename} を読み込みました（${csvData.length}件）`;
+
+  document.getElementById('csvStats').style.display = 'block';
+  document.getElementById('statRow').innerHTML = `
+    <div class="stat-box"><div class="num">${csvData.length}</div><div class="lbl">総従業員数</div></div>
+    <div class="stat-box"><div class="num red">${totalDefect}</div><div class="lbl">不備者数</div></div>
+    <div class="stat-box"><div class="num">${officeCount}</div><div class="lbl">対象事業所数</div></div>
+  `;
+
+  // マスタが先に読まれていれば紐づけ結果を表示
+  if (masterLoaded) showMatchResult();
+
+  checkReadyToNext();
+}
+
+// ===== STEP NAVIGATION =====
+function goStep(n) {
+  [1,2,3,4].forEach(i => {
+    document.getElementById('step' + i).style.display = i === n ? 'block' : 'none';
+    const ind = document.getElementById('step' + i + '-indicator');
+    ind.className = 'step' + (i < n ? ' done' : i === n ? ' active' : '');
+  });
+  if (n === 2) renderMasterTable();
+  if (n === 4) renderPreview();
+}
+
+// ===== MASTER TABLE =====
+function renderMasterTable() {
+  const tbody = document.getElementById('masterTableBody');
+  tbody.innerHTML = Object.entries(defectMap).map(([office, members]) => {
+    const email   = masterData[office]?.email   || '';
+    const manager = masterData[office]?.manager || '';
+    const autoFilled = email !== '';
+    const esc = office.replace(/'/g,"\\'");
+    return `
+    <tr>
+      <td style="max-width:160px;word-break:break-all;">
+        ${office}
+        ${autoFilled ? '<span style="font-size:10px;color:var(--success);margin-left:6px;">✅ 自動反映</span>' : '<span style="font-size:10px;color:var(--warning);margin-left:6px;">⚠️ 要入力</span>'}
+      </td>
+      <td>
+        <input type="text" placeholder="責任者名"
+          value="${manager}"
+          style="${autoFilled ? 'border-color:rgba(34,197,94,0.4);' : ''}"
+          onchange="masterData['${esc}'] = masterData['${esc}'] || {}; masterData['${esc}'].manager = this.value">
+      </td>
+      <td>
+        <input type="email" placeholder="example@company.com"
+          value="${email}"
+          style="${autoFilled ? 'border-color:rgba(34,197,94,0.4);' : ''}"
+          onchange="masterData['${esc}'] = masterData['${esc}'] || {}; masterData['${esc}'].email = this.value">
+      </td>
+      <td style="text-align:center;color:var(--danger);font-weight:700;">${members.length}名</td>
+      <td></td>
+    </tr>`;
+  }).join('');
+
+  if (Object.keys(defectMap).length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" class="no-data">不備者が見つかりませんでした</td></tr>';
+  }
+}
+
+// ===== PREVIEW =====
+let confirmedOffices = new Set();
+
+function renderPreview() {
+  const offices = Object.keys(defectMap)
+    .sort((a, b) => defectMap[b].length - defectMap[a].length); // 不備数多い順
+  if (offices.length === 0) return;
+
+  // タブ（不備数多い順）
+  document.getElementById('officeTabs').innerHTML = offices.map((o, i) => `
+    <div class="office-tab ${i === 0 ? 'active' : ''} ${confirmedOffices.has(o) ? 'confirmed-tab' : ''}"
+      id="tab-${i}"
+      onclick="selectOfficeByIndex(${i}, '${o.replace(/'/g,"\\'")}')">
+      ${truncate(o, 12)}
+      <span class="badge">${defectMap[o].length}</span>
+      ${confirmedOffices.has(o) ? '<span style="color:#22c55e;margin-left:2px;">✓</span>' : ''}
+    </div>
+  `).join('');
+
+  selectOffice(offices[0], null);
+  updateConfirmProgress(offices);
+
+  // 送信一覧（不備数多い順）
+  document.getElementById('sendList').innerHTML = offices.map(o => `
+    <div class="send-row">
+      <span class="office-name">
+        ${confirmedOffices.has(o) ? '<span style="color:var(--success);">✅</span> ' : '<span style="color:var(--warning);">⬜</span> '}
+        ${o}
+      </span>
+      <span style="font-size:11px;color:var(--text-muted);">${masterData[o]?.manager || '--'}</span>
+      <span class="email-addr">${masterData[o]?.email || '⚠️ 未設定'}</span>
+      <span class="count">不備 ${defectMap[o].length}名</span>
+    </div>
+  `).join('');
+}
+
+function selectOfficeByIndex(i, office) {
+  document.querySelectorAll('.office-tab').forEach(t => t.classList.remove('active'));
+  const tab = document.getElementById('tab-' + i);
+  if (tab) tab.classList.add('active');
+  selectOffice(office, null);
+}
+
+function selectOffice(office, el) {
+  currentOffice = office;
+  if (el) {
+    document.querySelectorAll('.office-tab').forEach(t => t.classList.remove('active'));
+    el.classList.add('active');
+  }
+
+  const master = masterData[office] || {};
+  const members = defectMap[office] || [];
+
+  // 送信先情報
+  document.getElementById('previewMasterInfo').innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <div style="display:flex;gap:8px;font-size:12px;">
+        <span style="color:var(--text-muted);min-width:72px;">事業所名</span>
+        <span style="font-weight:600;">${office}</span>
+      </div>
+      <div style="display:flex;gap:8px;font-size:12px;">
+        <span style="color:var(--text-muted);min-width:72px;">責任者名</span>
+        <span style="font-weight:600;${!master.manager ? 'color:var(--warning);' : ''}">${master.manager || '⚠️ 未設定'}</span>
+      </div>
+      <div style="display:flex;gap:8px;font-size:12px;">
+        <span style="color:var(--text-muted);min-width:72px;">メール</span>
+        <span style="font-family:\'DM Mono\',monospace;font-size:11px;${!master.email ? 'color:var(--danger);' : 'color:var(--accent);'}">${master.email || '⚠️ 未設定'}</span>
+      </div>
+    </div>
+  `;
+
+  // CSV元データ（エビデンス）
+  const tableRows = members.map(m => `
+    <tr>
+      <td style="font-family:\'DM Mono\',monospace;font-size:11px;color:var(--text-muted);">${m.no}</td>
+      <td style="font-size:12px;">${m.sei}</td>
+      <td style="font-size:12px;">${m.mei}</td>
+    </tr>
+  `).join('');
+
+  document.getElementById('previewCsvData').innerHTML = `
+    <table style="width:100%;border-collapse:collapse;">
+      <thead>
+        <tr>
+          <th style="text-align:left;padding:4px 6px;font-size:11px;color:var(--text-muted);border-bottom:1px solid var(--border);">従業員No.</th>
+          <th style="text-align:left;padding:4px 6px;font-size:11px;color:var(--text-muted);border-bottom:1px solid var(--border);">氏</th>
+          <th style="text-align:left;padding:4px 6px;font-size:11px;color:var(--text-muted);border-bottom:1px solid var(--border);">名</th>
+        </tr>
+      </thead>
+      <tbody>${tableRows}</tbody>
+    </table>
+  `;
+
+  // 件数チェック
+  const bodyText = buildBody(office);
+  const bodyCount = (bodyText.match(/^\s+\d+\./gm) || []).length;
+  const match = bodyCount === members.length;
+  document.getElementById('previewCountCheck').innerHTML = match
+    ? `<span style="color:var(--success);">✅ 件数一致：CSV ${members.length}名 ／ メール ${bodyCount}名</span>`
+    : `<span style="color:var(--danger);">⚠️ 件数不一致：CSV ${members.length}名 ／ メール ${bodyCount}名</span>`;
+
+  // メール文面
+  document.getElementById('previewSubject').textContent = '件名：' + buildSubject(office);
+  document.getElementById('previewBody').textContent = bodyText;
+
+  // 確認済みチェックボックスの状態
+  document.getElementById('confirmCheck').checked = confirmedOffices.has(office);
+
+  const offices = Object.keys(defectMap).sort((a, b) => defectMap[b].length - defectMap[a].length);
+  updateConfirmProgress(offices);
+}
+
+function updateConfirmStatus() {
+  const checked = document.getElementById('confirmCheck').checked;
+  if (checked) {
+    confirmedOffices.add(currentOffice);
+  } else {
+    confirmedOffices.delete(currentOffice);
+  }
+  const offices = Object.keys(defectMap).sort((a, b) => defectMap[b].length - defectMap[a].length);
+  updateConfirmProgress(offices);
+  renderSendList(offices);
+
+  // タブの確認済み表示を更新
+  offices.forEach((o, i) => {
+    const tab = document.getElementById('tab-' + i);
+    if (!tab) return;
+    const isConfirmed = confirmedOffices.has(o);
+    tab.innerHTML = `${truncate(o, 12)}<span class="badge">${defectMap[o].length}</span>${isConfirmed ? '<span style="color:#22c55e;margin-left:2px;">✓</span>' : ''}`;
+  });
+}
+
+function updateConfirmProgress(offices) {
+  const total = offices.length;
+  const confirmed = offices.filter(o => confirmedOffices.has(o)).length;
+  document.getElementById('confirmProgress').textContent = `確認済み ${confirmed} / ${total} 事業所`;
+}
+
+function renderSendList(offices) {
+  document.getElementById('sendList').innerHTML = offices.map(o => `
+    <div class="send-row">
+      <span class="office-name">
+        ${confirmedOffices.has(o) ? '<span style="color:var(--success);">✅</span> ' : '<span style="color:var(--warning);">⬜</span> '}
+        ${o}
+      </span>
+      <span style="font-size:11px;color:var(--text-muted);">${masterData[o]?.manager || '--'}</span>
+      <span class="email-addr">${masterData[o]?.email || '⚠️ 未設定'}</span>
+      <span class="count">不備 ${defectMap[o].length}名</span>
+    </div>
+  `).join('');
+}
+
+function buildSubject(office) {
+  return document.getElementById('mailSubject').value
+    .replace(/{事業所名}/g, office)
+    .replace(/{日付}/g, toDay());
+}
+
+function buildBody(office) {
+  const members = defectMap[office] || [];
+  const list = members.map((m, i) => `　${i+1}. ${m.sei}　${m.mei} 様　（従業員No. ${m.no}）`).join('\n');
+  const manager = masterData[office]?.manager || 'ご担当者';
+  return document.getElementById('mailTemplate').value
+    .replace(/{事業所名}/g, office)
+    .replace(/{責任者名}/g, manager)
+    .replace(/{氏名リスト}/g, list)
+    .replace(/{件数}/g, members.length)
+    .replace(/{日付}/g, toDay());
+}
+
+function previewOffice(office) {
+  document.getElementById('modalSub').textContent =
+    `宛先：${masterData[office]?.email || '未設定'} ／ ${office}`;
+  document.getElementById('modalMailContent').textContent =
+    '件名：' + buildSubject(office) + '\n\n' + buildBody(office);
+  modalCallback = () => sendOne(office);
+  document.getElementById('modalSendBtn').textContent = 'この事業所に送信';
+  document.getElementById('confirmModal').classList.add('show');
+}
+
+function closeModal() { document.getElementById('confirmModal').classList.remove('show'); }
+
+// ===== SPREADSHEET ID =====
+const SPREADSHEET_ID = '1d7nZRrJsuF_ZbYwL-Y0Q3daocUCvfcZSKElJXJZxEs0';
+const GAS_WRITE_URL = `https://docs.google.com/spreadsheets/d/${SPREADSHEET_ID}/edit`;
+const GAS_EXEC_URL = 'https://script.google.com/macros/s/AKfycbxA7enCQ1SWj4JI5HCz3NhD3Fo0vMDZewE1pR4CwTzt4R2sqE3-Ayvz0alaVkAhlTNg/exec';
+
+// ===== SEND =====
+function confirmSendAll() {
+  const offices = Object.keys(defectMap);
+  const noEmail = offices.filter(o => !masterData[o]?.email);
+  if (noEmail.length > 0) {
+    showStatus(`⚠️ メールアドレス未設定の事業所があります：${noEmail.join('、')}`, 'error');
+    return;
+  }
+  document.getElementById('modalSub').textContent =
+    `${offices.length}事業所へ一括送信します`;
+  document.getElementById('modalMailContent').textContent =
+    offices.map(o => `【${o}】\n宛先：${masterData[o].email}\n件名：${buildSubject(o)}\n不備者：${defectMap[o].length}名`).join('\n\n─────────────\n\n');
+  modalCallback = () => sendAll(offices);
+  document.getElementById('modalSendBtn').textContent = '全事業所に送信する';
+  document.getElementById('confirmModal').classList.add('show');
+}
+
+document.getElementById('modalSendBtn').onclick = () => {
+  closeModal();
+  if (modalCallback) modalCallback();
+};
+
+function sendOne(office) {
+  const email   = masterData[office]?.email;
+  const subject = buildSubject(office);
+  const body    = buildBody(office);
+  if (!email) { showStatus('メールアドレスが設定されていません', 'error'); return; }
+  const emails = [{ to: email, subject, body, office }];
+  executeSend(emails);
+}
+
+function sendAll(offices) {
+  const emails = offices
+    .filter(o => masterData[o]?.email)
+    .map(o => ({
+      to:      masterData[o].email,
+      subject: buildSubject(o),
+      body:    buildBody(o),
+      office:  o
+    }));
+  executeSend(emails);
+}
+
+async function executeSend(emails) {
+  showStatus('⏳ 送信中...', '');
+  document.getElementById('sendAllBtn').disabled = true;
+
+  try {
+    const response = await fetch(GAS_EXEC_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ emails }),
+      redirect: 'follow'
+    });
+
+    const result = await response.json();
+
+    if (result.success) {
+      const successCount = result.results.filter(r => r.status === 'success').length;
+      const errorCount = result.results.filter(r => r.status === 'error').length;
+      showStatus(
+        `✅ 送信完了！成功：${successCount}件 ／ エラー：${errorCount}件\nスプレッドシートで結果を確認してください。`,
+        'success'
+      );
+    } else {
+      showStatus('⚠️ エラーが発生しました: ' + result.error, 'error');
+    }
+    setTimeout(() => window.open(GAS_WRITE_URL, '_blank'), 1000);
+
+  } catch(err) {
+    showStatus('⚠️ GASへの接続に失敗しました。クリップボード方式に切り替えます...', 'error');
+    setTimeout(() => writeToSheet(emails), 1500);
+  } finally {
+    document.getElementById('sendAllBtn').disabled = false;
+  }
+}
+
+function writeToSheet(rows) {
+  const header = 'メールアドレス\t件名\t本文\t事業所名\t送信状況';
+  const tsv = rows.map(r =>
+    [r.to, r.subject, r.body.replace(/\n/g, '\\n'), r.office, '未送信'].join('\t')
+  ).join('\n');
+  const fullText = header + '\n' + tsv;
+
+  navigator.clipboard.writeText(fullText).then(() => {
+    showStatus(
+      `📋 ${rows.length}件のデータをクリップボードにコピーしました。\nスプレッドシートのA1セルに貼り付けて「📧 メール送信」を実行してください。`,
+      'success'
+    );
+    window.open(GAS_WRITE_URL, '_blank');
+  }).catch(() => {
+    showCopyFallback(fullText, rows.length);
+  });
+}
+
+function showCopyFallback(text, count) {
+  const existing = document.getElementById('copyFallback');
+  if (existing) existing.remove();
+  const div = document.createElement('div');
+  div.id = 'copyFallback';
+  div.style.cssText = 'margin-top:12px;';
+  div.innerHTML = `
+    <div style="font-size:12px;color:var(--warning);margin-bottom:8px;">
+      ⚠️ 以下のデータをコピーしてスプレッドシートのA1セルに貼り付けてください（${count}件）
+    </div>
+    <textarea style="width:100%;height:120px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;font-size:11px;font-family:monospace;" readonly>${text}</textarea>
+    <button onclick="navigator.clipboard.writeText(this.previousElementSibling.value).then(()=>this.textContent='✅ コピー済み')"
+      style="margin-top:6px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:12px;cursor:pointer;">
+      📋 コピーする
+    </button>
+  `;
+  document.getElementById('statusBar').after(div);
+  showStatus(`${count}件のデータを準備しました。`, 'success');
+  window.open(GAS_WRITE_URL, '_blank');
+}
+
+// ===== SEND =====
+function confirmSendAll() {
+  const offices = Object.keys(defectMap);
+  const noEmail = offices.filter(o => !masterData[o]?.email);
+  if (noEmail.length > 0) {
+    showStatus(`⚠️ メールアドレス未設定の事業所があります：${noEmail.join('、')}`, 'error');
+    return;
+  }
+  document.getElementById('modalSub').textContent =
+    `${offices.length}事業所へ一括送信します`;
+  document.getElementById('modalMailContent').textContent =
+    offices.map(o => `【${o}】\n宛先：${masterData[o].email}\n件名：${buildSubject(o)}\n不備者：${defectMap[o].length}名`).join('\n\n─────────────\n\n');
+  modalCallback = () => sendAll(offices);
+  document.getElementById('modalSendBtn').textContent = '全事業所に送信する';
+  document.getElementById('confirmModal').classList.add('show');
+}
+
+document.getElementById('modalSendBtn').onclick = () => {
+  closeModal();
+  if (modalCallback) modalCallback();
+};
+
+async function writeToSpreadsheet(rows) {
+  // Google Sheets API経由でスプレッドシートに書き込む
+  // まずシートをクリアしてからデータを書き込む
+  const range = `送信データ!A2:E${rows.length + 1}`;
+  const values = rows.map(r => [r.to, r.subject, r.body, r.office, '未送信']);
+
+  try {
+    // シートのURLを開いてユーザーに手動でGASを実行してもらう
+    // データをローカルストレージに保存
+    localStorage.setItem('bpo_mail_data', JSON.stringify(rows));
+    return true;
+  } catch(e) {
+    console.error(e);
+    return false;
+  }
+}
+
+function sendOne(office) {
+  const email   = masterData[office]?.email;
+  const subject = buildSubject(office);
+  const body    = buildBody(office);
+  if (!email) { showStatus('メールアドレスが設定されていません', 'error'); return; }
+
+  const rows = [{ to: email, subject, body, office }];
+  writeToSheet(rows);
+}
+
+function sendAll(offices) {
+  const rows = offices
+    .filter(o => masterData[o]?.email)
+    .map(o => ({
+      to:      masterData[o].email,
+      subject: buildSubject(o),
+      body:    buildBody(o),
+      office:  o
+    }));
+  writeToSheet(rows);
+}
+
+function writeToSheet(rows) {
+  showStatus('⏳ スプレッドシートにデータを書き込んでいます...', '');
+
+  // TSV形式でクリップボードにコピー（スプレッドシートに貼り付けやすい形式）
+  const header = 'メールアドレス\t件名\t本文\t事業所名\t送信状況';
+  const tsv = rows.map(r =>
+    [r.to, r.subject, r.body.replace(/\n/g, '\\n'), r.office, '未送信'].join('\t')
+  ).join('\n');
+
+  const fullText = header + '\n' + tsv;
+
+  navigator.clipboard.writeText(fullText).then(() => {
+    showStatus(
+      `✅ ${rows.length}件のデータをクリップボードにコピーしました。\n` +
+      `スプレッドシートの「送信データ」シートのA1セルを選択して貼り付け（Ctrl+V）してください。\n` +
+      `その後スプレッドシートの「📧 メール送信」→「送信データを確認して送信する」をクリックしてください。`,
+      'success'
+    );
+    // スプレッドシートを別タブで開く
+    window.open(GAS_WRITE_URL, '_blank');
+  }).catch(() => {
+    // クリップボードAPIが使えない場合はテキストエリアで表示
+    showCopyFallback(fullText, rows.length);
+  });
+}
+
+function showCopyFallback(text, count) {
+  const existing = document.getElementById('copyFallback');
+  if (existing) existing.remove();
+
+  const div = document.createElement('div');
+  div.id = 'copyFallback';
+  div.style.cssText = 'margin-top:12px;';
+  div.innerHTML = `
+    <div style="font-size:12px;color:var(--warning);margin-bottom:8px;">
+      ⚠️ 以下のデータをコピーしてスプレッドシートの「送信データ」シートのA1セルに貼り付けてください（${count}件）
+    </div>
+    <textarea style="width:100%;height:120px;background:var(--surface2);border:1px solid var(--border);border-radius:8px;color:var(--text);padding:8px;font-size:11px;font-family:monospace;" readonly>${text}</textarea>
+    <button onclick="navigator.clipboard.writeText(this.previousElementSibling.value).then(()=>this.textContent='✅ コピー済み')"
+      style="margin-top:6px;background:var(--accent);color:#fff;border:none;border-radius:8px;padding:8px 16px;font-size:12px;cursor:pointer;">
+      📋 コピーする
+    </button>
+  `;
+  document.getElementById('statusBar').after(div);
+  showStatus(`${count}件のデータを準備しました。上のテキストをコピーしてスプレッドシートに貼り付けてください。`, 'success');
+  window.open(GAS_WRITE_URL, '_blank');
+}
+
+// ===== UTILS =====
+function toDay() {
+  const d = new Date();
+  return `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日`;
+}
+
+function truncate(str, n) { return str.length > n ? str.slice(0, n) + '…' : str; }
+
+function showStatus(msg, type) {
+  const el = document.getElementById('statusBar');
+  el.textContent = msg;
+  el.className = 'status-bar show ' + (type || '');
+}
+</script>
+</body>
+</html>
