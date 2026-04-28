@@ -16,6 +16,7 @@
     --accent2: #a78bfa;
     --danger: #ef4444;
     --success: #22c55e;
+    --warning: #f59e0b;
     --text: #e8eaf6;
     --text-muted: #6b7a99;
     --text-dim: #3d4566;
@@ -493,9 +494,16 @@
       <input type="number" id="marginNum" value="30" min="5" max="80" step="5" oninput="syncMargin('num')">
       <span class="ctrl-unit">%</span>
     </div>
+    <div class="ctrl-row">
+      <span class="ctrl-lbl">想定不備率</span>
+      <input type="range" id="defectRange" min="0" max="50" value="10" step="1" oninput="syncDefect('range')">
+      <input type="number" id="defectNum" value="10" min="0" max="50" step="1" oninput="syncDefect('num')">
+      <span class="ctrl-unit">%</span>
+    </div>
     <div class="formula-note">
-      単価 = 時給 ÷ 60 × 平均工数(分) ÷ (1 − 利益率)<br>
-      例: ¥1,500 ÷ 60 × 8分 ÷ 0.70 = ¥286/件
+      原価 = 時給 ÷ 60 × 平均工数(分)<br>
+      合成原価 = (OK原価 × (1−不備率)) + (不備あり原価 × 不備率)<br>
+      合成単価 = 合成原価 ÷ (1 − 利益率)
     </div>
   </div>
 
@@ -515,6 +523,12 @@
       <span class="cnt-badge" id="ngCount">0件</span>
     </div>
     <div id="ngTable"><div class="no-data">データがありません</div></div>
+  </div>
+
+  <!-- 合成単価シミュレーション -->
+  <div class="report-section" style="border-top:3px solid var(--accent);">
+    <div class="sect-title" style="color:var(--accent);">💰 合成単価シミュレーション</div>
+    <div id="simTable"><div class="no-data">データがありません</div></div>
   </div>
 
   <button class="export-btn" onclick="exportReportCSV()">📥 集計レポートをCSVエクスポート</button>
@@ -733,6 +747,14 @@ function importCSV(e) {
   reader.readAsText(file, 'utf-8');
 }
 
+// ===== DEFECT RATE SYNC =====
+function syncDefect(from) {
+  const r = document.getElementById('defectRange');
+  const n = document.getElementById('defectNum');
+  if (from === 'range') n.value = r.value; else r.value = n.value;
+  renderReport();
+}
+
 // ===== MARGIN SYNC =====
 function syncMargin(from) {
   const r = document.getElementById('marginRange');
@@ -754,6 +776,96 @@ function renderReport() {
   document.getElementById('ngCount').textContent = ng.length + '件';
   document.getElementById('okTable').innerHTML = buildTable(ok, hourly, margin, false);
   document.getElementById('ngTable').innerHTML = buildTable(ng, hourly, margin, true);
+  renderSimulation(ok, ng, hourly, margin, data);
+}
+
+function calcTotalCost(set, hourly, inclDefect) {
+  let totalAvgSec = 0;
+  STEPS.filter(step => inclDefect || !step.defectOnly).forEach(step => {
+    let totalSec = 0, cnt = 0;
+    set.forEach(s => { const e = s.steps[step.id]?.elapsed || 0; if (e > 0) { totalSec += e; cnt++; } });
+    totalAvgSec += cnt > 0 ? totalSec / cnt : 0;
+  });
+  // 原価 = 時給/60 × 平均工数(分)
+  return (hourly / 60) * (totalAvgSec / 60);
+}
+
+function renderSimulation(ok, ng, hourly, margin, data) {
+  const simEl = document.getElementById('simTable');
+  if (ok.length === 0 && ng.length === 0) {
+    simEl.innerHTML = '<div class="no-data">データがありません</div>';
+    return;
+  }
+
+  const okCost  = ok.length > 0 ? calcTotalCost(ok, hourly, false) : 0;
+  const ngCost  = ng.length > 0 ? calcTotalCost(ng, hourly, true)  : 0;
+  const okPrice = okCost  > 0 ? okCost  / (1 - margin) : 0;
+  const ngPrice = ngCost  > 0 ? ngCost  / (1 - margin) : 0;
+
+  // 実測不備率
+  const actualRate = data.length > 0 ? ng.length / data.length : 0;
+  // 想定不備率
+  const simRate = parseFloat(document.getElementById('defectNum').value) / 100;
+
+  function calcComposite(rate) {
+    const cost = okCost * (1 - rate) + ngCost * rate;
+    return cost / (1 - margin);
+  }
+
+  const actualPrice = calcComposite(actualRate);
+  const simPrice    = calcComposite(simRate);
+
+  const marginVal = document.getElementById('marginNum').value;
+
+  simEl.innerHTML = `
+    <table class="rtable" style="margin-bottom:14px;">
+      <thead>
+        <tr>
+          <th style="text-align:left;">区分</th>
+          <th>原価</th>
+          <th>単価（売価）</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>✅ 検査OK（${ok.length}件）</td>
+          <td class="mono">${okCost > 0 ? '¥' + Math.ceil(okCost).toLocaleString() : '--'}</td>
+          <td class="price">${okPrice > 0 ? fmtYen(okPrice) : '--'}</td>
+        </tr>
+        <tr>
+          <td>⚠️ 不備あり（${ng.length}件）</td>
+          <td class="mono">${ngCost > 0 ? '¥' + Math.ceil(ngCost).toLocaleString() : '--'}</td>
+          <td class="price">${ngPrice > 0 ? fmtYen(ngPrice) : '--'}</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <table class="rtable">
+      <thead>
+        <tr>
+          <th style="text-align:left;">シナリオ</th>
+          <th>不備率</th>
+          <th>合成原価</th>
+          <th>合成単価</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>📊 実測値</td>
+          <td class="mono" style="color:var(--success);">${Math.round(actualRate * 100)}%</td>
+          <td class="mono">¥${Math.ceil(okCost * (1 - actualRate) + ngCost * actualRate).toLocaleString()}</td>
+          <td class="price">${actualPrice > 0 ? fmtYen(actualPrice) : '--'}</td>
+        </tr>
+        <tr class="total-row">
+          <td>🎯 想定値</td>
+          <td class="mono" style="color:var(--warning);">${Math.round(simRate * 100)}%</td>
+          <td class="mono">¥${Math.ceil(okCost * (1 - simRate) + ngCost * simRate).toLocaleString()}</td>
+          <td class="price" style="font-size:17px;">${simPrice > 0 ? fmtYen(simPrice) : '--'}</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="param-note">利益率 ${marginVal}% ／ 合成単価 = (OK原価 × (1−不備率) + 不備原価 × 不備率) ÷ (1−利益率)</div>
+  `;
 }
 
 function buildTable(set, hourly, margin, inclDefect) {
